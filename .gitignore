@@ -1,0 +1,7 @@
+.DS_Store
+shell_*
+ssh_*
+.idea
+*.swp
+*.pyc
+venv/

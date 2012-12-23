@@ -11,9 +11,8 @@ Notes
 -----
 
 * These scripts have been written for Python 2.7.2 and may not work with other versions.
-* EC2 scripts additionally require both [boto](http://docs.pythonboto.org/en/latest/)
-  and [fabric](http://docs.fabfile.org/en/1.5/) in order to provision and control
-  multiple EC2 instances.
+* These scripts use both [boto](http://docs.pythonboto.org/en/latest/) and [fabric](http://docs.fabfile.org/en/1.5/)
+  in order to provision and control multiple EC2 instances.
 
 License
 -------

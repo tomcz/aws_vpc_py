@@ -1,6 +1,5 @@
 .DS_Store
-shell_*
-ssh_*
+connect_*
 .idea
 *.swp
 *.pyc

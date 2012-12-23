@@ -24,6 +24,7 @@ fi
 
 if [ $# == 0 ]; then
   venv/bin/python venv/bin/fab --list
+  echo ''
 else
   venv/bin/python venv/bin/fab $@
 fi

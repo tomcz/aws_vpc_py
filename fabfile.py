@@ -34,7 +34,7 @@ def delete_vpc(vpc_name='midkemia'):
 def connect_script(node):
     filename = 'connect_' + node.name
     command = "ssh -i %s -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no %s@%s\n"
-    command = command % (node.ssh_key, node.ssh_user, node.public_ip)
+    command = command % (node.keyfile, node.user, node.public_ip)
 
     with open(filename, 'w') as script:
         script.write('#!/bin/sh\n')

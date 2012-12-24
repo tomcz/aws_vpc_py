@@ -1,5 +1,5 @@
 from fabric.api import *
-import aws, os
+import aws, os, glob
 
 @task
 def check_credentials():
@@ -14,12 +14,22 @@ def check_credentials():
 @task
 def make_vpc(vpc_name='midkemia'):
     """
-    Make a VPC - by default the vpc_name is 'midkemia'
+    Make VPC - by default the vpc_name is 'midkemia'
     """
     check_credentials()
     bastion_hosts = aws.make_vpc(vpc_name)
     for host in bastion_hosts:
         connect_script(host)
+
+@task
+def delete_vpc(vpc_name='midkemia'):
+    """
+    Delete VPC - by default the vpc_name is 'midkemia'
+    """
+    check_credentials()
+    aws.delete_vpc(vpc_name)
+    for path in glob.glob('connect_*'):
+        os.remove(path)
 
 def connect_script(node):
     filename = 'connect_' + node.name

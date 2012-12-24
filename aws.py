@@ -1,5 +1,6 @@
 from ConfigParser import SafeConfigParser
 from boto.s3.connection import Location
+from collections import namedtuple
 import os, boto, boto.ec2
 
 CREDENTIALS_FILE = os.path.join(os.path.dirname(__file__), 'venv', 'aws.cfg')
@@ -7,16 +8,10 @@ BASTION_KEY_FILE = os.path.join(os.path.dirname(__file__), 'venv', 'bastion.pem'
 
 ANYWHERE = '0.0.0.0/0'
 
-class Node:
-    def __init__(self, name, public_ip, user, keyfile):
-        self.public_ip = public_ip
-        self.ssh_key = keyfile
-        self.ssh_user = user
-        self.name = name
+Node = namedtuple('Node', ['name', 'public_ip', 'user', 'keyfile'])
 
-def make_vpc(vpc_name):
-    vpc_config_file = os.path.join(os.path.dirname(__file__), 'config', 'vpc', vpc_name + '.cfg')
-    vpc_config = read_config_file(vpc_config_file)
+def make_vpc(vpc_config_name):
+    vpc_config = read_vpc_config(vpc_config_name)
 
     vpc_name = vpc_config.get('vpc', 'name')
     vpc_region = vpc_config.get('vpc', 'region')
@@ -41,6 +36,10 @@ def make_vpc(vpc_name):
             bastion_hosts.append(bastion)
 
     return bastion_hosts
+
+def read_vpc_config(vpc_config_name):
+    vpc_config_file = os.path.join(os.path.dirname(__file__), 'config', 'vpc', vpc_config_name + '.cfg')
+    return read_config_file(vpc_config_file)
 
 def get_or_create_vpc(vpc_conn, vpc_name, cidr_block):
     for vpc in filter_by_name(vpc_conn.get_all_vpcs, vpc_name):
@@ -166,6 +165,7 @@ def get_or_create_vpc_security_group(ec2_conn, vpc_config, vpc_id):
 
     print 'Creating Security Group with name:', security_group_name
     security_group ec2_conn.create_security_group(security_group_name, security_group_name, vpc_id)
+    clear_all_permissions(ec2_conn, security_group) # start with a clean slate
     allow_https_egress(ec2_conn, security_group.id, ANYWHERE)
     allow_http_egress(ec2_conn, security_group.id, ANYWHERE)
     allow_ssh_ingress(ec2_conn, security_group.id, ANYWHERE)
@@ -225,3 +225,79 @@ def read_config_file(config_file_path):
         config.readfp(fp)
     return config
 
+def delete_vpc(vpc_config_name):
+    vpc_config = read_vpc_config(vpc_config_name)
+
+    vpc_name = vpc_config.get('vpc', 'name')
+    vpc_region = vpc_config.get('vpc', 'region')
+
+    access_key_id, secret_access_key = read_credentials()
+    vpc_conn = boto.connect_vpc(access_key_id, secret_access_key, region=vpc_region)
+    ec2_conn = boto.ec2.connect_to_region(vpc_region, aws_access_key_id=access_key, aws_secret_access_key=secret_access_key)
+
+    for vpc in filter_by_name(vpc_conn.get_all_vpcs, vpc_name):
+        filters = {'vpc-id': vpc.id}
+        instances = [instance for instance in ec2_conn.get_all_instances(filters=filters)]
+
+        filters = {'instance-id': [instance.id for instance in instances]}
+        addresses = [address for address in ec2_conn.get_all_addresses(filters=filters)]
+
+        for address in addresses:
+            print 'Disassociating elastic ip', address.public_ip
+            address.disassociate()
+
+        for address in addresses:
+            print 'Releasing elastic ip', address.public_ip
+            address.release()
+
+        for instance in instances:
+            print 'Terminating instance', instance.id
+            instance.terminate()
+
+        for instance in instances:
+            print 'Waiting for instance', instance.id, 'to terminate'
+            wait_until(instance, 'terminated')
+
+        # there is no filter to get security groups for a vpc!!
+        security_groups = [group for group in ec2_conn.get_all_security_groups() if group.vpc_id == vpc.id]
+
+        for security_group in security_groups:
+            clear_all_permissions(vpc_conn, security_group)
+
+        for security_group in security_groups:
+            print 'Deleting security group', security_group.name
+            security_group.delete()
+
+        filters = {'vpc-id': vpc.id}
+
+        for subnet in vpc_conn.get_all_subnets(filters=filters):
+            print 'Deleting subnet', subnet.id
+            vpc_conn.delete_subnet(subnet.id)
+
+        for route_table in vpc.get_all_route_tables(filters=filters):
+            print 'Deleting route table', route_table.id
+            vpc_conn.delete_route_table(route_table.id)
+
+        for internet_gateway in filter_by_name(vpc_conn.get_all_internet_gateways, vpc_name):
+            print 'Deleting internet gateway', internet_gateway.id
+            vpc_conn.delete_internet_gateway(internet_gateway.id)
+
+        print 'Deleting vpc', vpc_name, vpc.id
+        vpc_conn.delete_vpc(vpc.id)
+
+def clear_all_permissions(ec2_conn, security_group):
+    revoke_ingress_permissions(vpc_conn, security_group)
+    revoke_egress_permissions(vpc_conn, security_group)
+
+def revoke_ingress_permissions(ec2_conn, security_group):
+    for rule in security_group.rules:
+        for grant in rule.grants:
+            ec2_conn.revoke_security_group(group_id=security_group.id, ip_protocol=rule.ip_protocol,
+                from_port=rule.from_port, to_port=rule.to_port, cidr_ip=grant.cidr_ip,
+                src_security_group_group_id=grant.group_id)
+
+def revoke_egress_permissions(ec2_conn, security_group):
+    for rule in security_group.rules_egress:
+        for grant in rule.grants:
+            ec2_conn.revoke_security_group_egress(security_group.id, rule.ip_protocol,
+                rule.from_port, rule.to_port, grant.group_id, grant.cidr_ip)

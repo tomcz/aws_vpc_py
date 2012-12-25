@@ -7,6 +7,13 @@ Requirements
 You should not need to do anything special except to invoke the `./go` script.
 It should do the rest including setting up the required python libraries in a virtualenv environment.
 
+Usage
+-----
+
+    ./go check_credentials  Ensure that AWS API credentials exist
+    ./go delete_vpc         Delete VPC - by default the vpc_name is 'midkemia'
+    ./go make_vpc           Make VPC - by default the vpc_name is 'midkemia'
+
 Notes
 -----
 

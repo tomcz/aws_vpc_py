@@ -88,7 +88,7 @@ def get_or_create_bastion_host(conn, vpc_config, bastion_host_name, vpc_id, subn
     key_pair = get_bastion_host_key(conn, vpc_config)
     security_group = get_or_create_vpc_security_group(conn, vpc_config, vpc_id)
 
-    for reservation in fetch_running_reservations(conn, bastion_host_name):
+    for reservation in fetch_running_reservations(conn, bastion_host_name, vpc_id):
         for instance in reservation.instances:
             public_ip = associate_elastic_ip(conn, instance)
             return Node(bastion_host_name, public_ip, image_login_user, BASTION_KEY_FILE)
@@ -194,8 +194,8 @@ def allow_http_egress(conn, security_group, destination):
 def allow_https_egress(conn, security_group, destination):
     conn.ec2.authorize_security_group_egress(security_group, 'tcp', 443, 443, None, destination)
 
-def fetch_running_reservations(conn, name):
-    filters = {'tag:Name': name, 'instance-state-name': 'running'}
+def fetch_running_reservations(conn, name, vpc_id):
+    filters = {'tag:Name': name, 'instance-state-name': 'running', 'vpc-id': vpc_id}
     return conn.ec2.get_all_instances(filters=filters)
 
 def filter_by_name(function, name):

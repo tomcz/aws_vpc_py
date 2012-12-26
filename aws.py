@@ -202,6 +202,10 @@ def filter_by_name(function, name):
     filters = {'tag:Name': name}
     return function(filters=filters)
 
+def filter_by_vpc(function, vpc_id):
+    filters = {'vpc-id': vpc_id}
+    return function(filters=filters)
+
 def filter_by_name_and_vpc(function, name, vpc_id):
     filters = {'tag:Name': name, 'vpc-id': vpc_id}
     return function(filters=filters)
@@ -248,8 +252,7 @@ def delete_vpc(vpc_config_name):
 
     for vpc in filter_by_name(conn.vpc.get_all_vpcs, vpc_name):
         instances = []
-        filters = {'vpc-id': vpc.id}
-        for reservation in conn.ec2.get_all_instances(filters=filters):
+        for reservation in filter_by_vpc(conn.ec2.get_all_instances, vpc.id):
             for instance in reservation.instances:
                 instances.append(instance)
 
@@ -272,7 +275,7 @@ def delete_vpc(vpc_config_name):
             print 'Waiting for instance', instance.id, 'to terminate'
             wait_until(instance, 'terminated')
 
-        # there is no filter to get security groups for a vpc!!
+        # there is no filter to get security groups for a specific VPC !!
         security_groups = [gp for gp in conn.ec2.get_all_security_groups() if gp.vpc_id == vpc.id]
 
         for security_group in security_groups:
@@ -282,17 +285,17 @@ def delete_vpc(vpc_config_name):
             time.sleep(5)
 
         for security_group in security_groups:
+            # default security group is deleted when the VPC is deleted
             if security_group.name != 'default':
                 print 'Deleting security group', security_group.name
                 security_group.delete()
 
-        filters = {'vpc-id': vpc.id}
-
-        for subnet in conn.vpc.get_all_subnets(filters=filters):
+        for subnet in filter_by_vpc(conn.vpc.get_all_subnets, vpc.id):
             print 'Deleting subnet', subnet.id
             conn.vpc.delete_subnet(subnet.id)
 
-        for route_table in conn.vpc.get_all_route_tables(filters=filters):
+        for route_table in filter_by_vpc(conn.vpc.get_all_route_tables, vpc.id):
+            # main route table is deleted when the VPC is deleted
             if not is_main_route_table(route_table):
                 print 'Deleting route table', route_table.id
                 conn.vpc.delete_route_table(route_table.id)

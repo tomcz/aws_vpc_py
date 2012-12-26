@@ -12,11 +12,11 @@ Node = namedtuple('Node', ['name', 'public_ip', 'user', 'keyfile'])
 Connections = namedtuple('Connections', ['ec2', 'vpc', 's3'])
 
 def connect(vpc_region):
-    access_key_id, secret_access_key = read_credentials()
-    s3_conn = boto.connect_s3(access_key_id, secret_access_key)
-    ec2_conn = boto.ec2.connect_to_region(vpc_region, aws_access_key_id=access_key_id, aws_secret_access_key=secret_access_key)
-    region = boto.ec2.get_region(vpc_region, aws_access_key_id=access_key_id, aws_secret_access_key=secret_access_key)
-    vpc_conn = boto.connect_vpc(access_key_id, secret_access_key, region=region)
+    access_key, secret_key = read_credentials()
+    s3_conn = boto.connect_s3(access_key, secret_key)
+    ec2_conn = boto.ec2.connect_to_region(vpc_region, aws_access_key_id=access_key, aws_secret_access_key=secret_key)
+    region = boto.ec2.get_region(vpc_region, aws_access_key_id=access_key, aws_secret_access_key=secret_key)
+    vpc_conn = boto.connect_vpc(access_key, secret_key, region=region)
     return Connections(ec2_conn, vpc_conn, s3_conn)
 
 def make_vpc(vpc_config_name):
@@ -95,8 +95,9 @@ def get_or_create_bastion_host(conn, vpc_config, bastion_host_name, vpc_id, subn
 
     print 'Creating Instance with name:', bastion_host_name
     reservation = conn.ec2.run_instances(image_id, instance_type=instance_type,
-                    key_name=key_pair.name, security_group_ids=[security_group.id],
-                    subnet_id=subnet.id)
+                                         security_group_ids=[security_group.id],
+                                         key_name=key_pair.name,
+                                         subnet_id=subnet.id)
 
     for instance in reservation.instances:
         print 'Waiting for', bastion_host_name, instance.id, 'to start ...'
@@ -184,7 +185,8 @@ def get_or_create_vpc_security_group(conn, vpc_config, vpc_id):
     return security_group
 
 def allow_ssh_ingress(conn, security_group, source):
-    conn.ec2.authorize_security_group(group_id=security_group, ip_protocol='tcp', from_port=22, to_port=22, cidr_ip=source)
+    conn.ec2.authorize_security_group(group_id=security_group, ip_protocol='tcp',
+                                      from_port=22, to_port=22, cidr_ip=source)
 
 def allow_http_egress(conn, security_group, destination):
     conn.ec2.authorize_security_group_egress(security_group, 'tcp', 80, 80, None, destination)
@@ -229,7 +231,7 @@ def read_credentials():
     config = read_config_file(CREDENTIALS_FILE)
     access_key_id = config.get('aws', 'access_key_id')
     secret_access_key = config.get('aws', 'secret_access_key')
-    return (access_key_id, secret_access_key)
+    return access_key_id, secret_access_key
 
 def read_config_file(config_file_path):
     config = SafeConfigParser()
@@ -311,14 +313,16 @@ def revoke_ingress_permissions(conn, security_group):
     for rule in security_group.rules:
         for grant in rule.grants:
             conn.ec2.revoke_security_group(group_id=security_group.id, ip_protocol=rule.ip_protocol,
-                from_port=rule.from_port, to_port=rule.to_port, cidr_ip=grant.cidr_ip,
-                src_security_group_group_id=grant.group_id)
+                                           from_port=rule.from_port, to_port=rule.to_port,
+                                           src_security_group_group_id=grant.group_id,
+                                           cidr_ip=grant.cidr_ip)
 
 def revoke_egress_permissions(conn, security_group):
     for rule in security_group.rules_egress:
         for grant in rule.grants:
             conn.ec2.revoke_security_group_egress(security_group.id, rule.ip_protocol,
-                rule.from_port, rule.to_port, grant.group_id, grant.cidr_ip)
+                                                  rule.from_port, rule.to_port,
+                                                  grant.group_id, grant.cidr_ip)
 
 def is_main_route_table(route_table):
     for association in route_table.associations:

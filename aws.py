@@ -34,10 +34,10 @@ def make_vpc(vpc_config_name):
     for subnet_name in vpc_config.sections():
         if subnet_name != 'vpc':
             cidr_block = vpc_config.get(subnet_name, 'cidr_block')
-            bastion_name = vpc_config.get(subnet_name, 'bastion_host')
+            bastion_host_name = vpc_config.get(subnet_name, 'bastion_host')
             availability_zone = vpc_config.get(subnet_name, 'availability_zone')
             subnet = get_or_create_subnet(conn, vpc, route_table, subnet_name, cidr_block, availability_zone)
-            bastion = get_or_create_bastion_host(conn, vpc_config, bastion_name, vpc.id, subnet)
+            bastion = get_or_create_bastion_host(conn, vpc_config, bastion_host_name, vpc, subnet)
             bastion_hosts.append(bastion)
 
     return bastion_hosts
@@ -81,14 +81,14 @@ def get_or_create_subnet(conn, vpc, route_table, subnet_name, cidr_block, availa
     conn.vpc.associate_route_table(route_table.id, subnet.id)
     return subnet
 
-def get_or_create_bastion_host(conn, vpc_config, bastion_host_name, vpc_id, subnet):
+def get_or_create_bastion_host(conn, vpc_config, bastion_host_name, vpc, subnet):
     image_id = vpc_config.get('vpc', 'default_image_id')
     instance_type = vpc_config.get('vpc', 'default_instance_type')
     image_login_user = vpc_config.get('vpc', 'default_image_login_user')
     key_pair = get_bastion_host_key(conn, vpc_config)
-    security_group = get_or_create_vpc_security_group(conn, vpc_config, vpc_id)
+    security_group = get_or_create_vpc_security_group(conn, vpc_config, vpc.id)
 
-    for reservation in fetch_running_reservations(conn, bastion_host_name, vpc_id):
+    for reservation in fetch_running_reservations(conn, bastion_host_name, vpc.id):
         for instance in reservation.instances:
             public_ip = associate_elastic_ip(conn, instance)
             return Node(bastion_host_name, public_ip, image_login_user, BASTION_KEY_FILE)

@@ -139,16 +139,16 @@ def get_or_create_bastion_key_pair(conn, key_name, key_object_name, vpc_config):
         upload_bastion_key(conn, vpc_config, key_object_name)
     return key_pair
 
+def write_bastion_key_file(contents):
+    with open(BASTION_KEY_FILE, 'wb') as fp:
+        fp.write(contents)
+    os.chmod(BASTION_KEY_FILE, 0600)
+
 def upload_bastion_key(conn, vpc_config, key_object_name):
     bucket = get_key_bucket(conn, vpc_config)
     print 'Uploading bastion host key to S3 bucket'
     key = bucket.new_key(key_object_name)
     key.set_contents_from_filename(BASTION_KEY_FILE, encrypt_key=True)
-
-def write_bastion_key_file(contents):
-    with open(BASTION_KEY_FILE, 'wb') as fp:
-        fp.write(contents)
-    os.chmod(BASTION_KEY_FILE, 0600)
 
 def ensure_bastion_host_keyfile_exists(conn, vpc_config, key_object_name):
     if not os.path.isfile(BASTION_KEY_FILE):
@@ -174,7 +174,8 @@ def get_or_create_vpc_security_group(conn, vpc_config, vpc_id):
 
     filters = {'group-name': security_group_name}
     for security_group in conn.ec2.get_all_security_groups(filters=filters):
-        return security_group
+        if security_group.vpc_id == vpc_id:
+            return security_group
 
     print 'Creating Security Group with name:', security_group_name
     security_group = conn.ec2.create_security_group(security_group_name, security_group_name, vpc_id)
@@ -184,15 +185,15 @@ def get_or_create_vpc_security_group(conn, vpc_config, vpc_id):
     allow_ssh_ingress(conn, security_group.id, ANYWHERE)
     return security_group
 
-def allow_ssh_ingress(conn, security_group, source):
-    conn.ec2.authorize_security_group(group_id=security_group, ip_protocol='tcp',
-                                      from_port=22, to_port=22, cidr_ip=source)
+def allow_https_egress(conn, security_group, destination):
+    conn.ec2.authorize_security_group_egress(security_group, 'tcp', 443, 443, None, destination)
 
 def allow_http_egress(conn, security_group, destination):
     conn.ec2.authorize_security_group_egress(security_group, 'tcp', 80, 80, None, destination)
 
-def allow_https_egress(conn, security_group, destination):
-    conn.ec2.authorize_security_group_egress(security_group, 'tcp', 443, 443, None, destination)
+def allow_ssh_ingress(conn, security_group, source):
+    conn.ec2.authorize_security_group(group_id=security_group, ip_protocol='tcp',
+                                      from_port=22, to_port=22, cidr_ip=source)
 
 def fetch_running_reservations(conn, name, vpc_id):
     filters = {'tag:Name': name, 'instance-state-name': 'running', 'vpc-id': vpc_id}
@@ -213,9 +214,9 @@ def filter_by_name_and_vpc(function, name, vpc_id):
 def tag_with_name(item, name):
     item.add_tag('Name', name)
 
-def wait_until(instance, status):
+def wait_until(instance, state):
     instance.update()
-    while instance.state != status:
+    while instance.state != state:
         time.sleep(5)
         instance.update()
 

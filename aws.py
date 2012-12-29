@@ -42,10 +42,6 @@ def make_vpc(vpc_config_name):
 
     return bastion_hosts
 
-def read_vpc_config(vpc_config_name):
-    vpc_config_file = os.path.join(os.path.dirname(__file__), 'config', 'vpc', vpc_config_name + '.cfg')
-    return read_config_file(vpc_config_file)
-
 def get_or_create_vpc(conn, vpc_name, cidr_block):
     for vpc in filter_by_name(conn.vpc.get_all_vpcs, vpc_name):
         return vpc
@@ -237,6 +233,10 @@ def read_credentials():
     access_key_id = config.get('aws', 'access_key_id')
     secret_access_key = config.get('aws', 'secret_access_key')
     return access_key_id, secret_access_key
+
+def read_vpc_config(vpc_config_name):
+    vpc_config_file = os.path.join(os.path.dirname(__file__), 'config', 'vpc', vpc_config_name + '.cfg')
+    return read_config_file(vpc_config_file)
 
 def read_config_file(config_file_path):
     config = SafeConfigParser()

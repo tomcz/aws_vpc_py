@@ -158,7 +158,7 @@ def get_key_bucket(conn, vpc_config):
     key_bucket_region = get_or_default(vpc_config, 'vpc', 'key_bucket_region', Location.DEFAULT)
     key_bucket_prefix = vpc_config.get('vpc', 'key_bucket_prefix')
     bucket_name = (key_bucket_prefix + '-' + conn.s3.aws_access_key_id).lower()
-    print 'Using', bucket_name, 'to hold EC2 keys'
+    print 'Using', bucket_name, 'S3 bucket to hold EC2 keys'
     return conn.s3.create_bucket(bucket_name, location=key_bucket_region)
 
 def get_or_default(config, section, option, default_value=None):

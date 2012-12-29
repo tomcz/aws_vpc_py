@@ -1,2 +1,4 @@
 boto==2.6.0
 Fabric==1.5.1
+termcolor==1.1.0
+Mako==0.7.3

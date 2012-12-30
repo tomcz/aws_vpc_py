@@ -26,7 +26,7 @@ def make_vpc(vpc_name='midkemia'):
     for host in bastion_hosts:
         with connection_to_instance(host):
             setup_puppet_standalone()
-            apply_manifest('bastion_host', host.user)
+            apply_manifest('bastion_host', host.name, host.user)
     for host in bastion_hosts:
         connect_script(host)
 
@@ -83,10 +83,10 @@ def setup_puppet_standalone():
     put('build/' + tarball_name, tarball_name)
     run('tar xzf ' + tarball_name)
 
-def apply_manifest(manifest, user):
-    variables = {'user': user}
-    output_file = 'build/%s.pp' % manifest
+def apply_manifest(manifest, hostname, user):
+    variables = {'user': user, 'vpc_host': hostname}
     input_file = 'puppet/manifests/%s.pp' % manifest
+    output_file = 'build/%s.pp' % manifest
 
     content = Template(filename=input_file).render(variables=variables)
     with open(output_file, 'w') as fp:
@@ -95,5 +95,6 @@ def apply_manifest(manifest, user):
     puppet_root = '/home/%s/puppet' % user
     command = 'puppet apply --modulepath=%s/modules %s/%s.pp'
 
+    sudo('hostname %s.local' % hostname)
     put(output_file, '%s/%s.pp' % (puppet_root, manifest))
     sudo(command % (puppet_root, puppet_root, manifest))

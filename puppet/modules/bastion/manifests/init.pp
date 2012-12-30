@@ -1,6 +1,7 @@
 class bastion {
 
-  host { "$hostname":
+  host { $vpc_host:
+    host_aliases => ["$vpc_host.local"],
     ip => "$ipaddress",
     ensure => present,
   }

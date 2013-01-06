@@ -85,7 +85,7 @@ def setup_puppet_standalone():
 
 def apply_manifest(manifest, hostname, user):
     variables = {'user': user, 'vpc_host': hostname}
-    input_file = 'puppet/manifests/%s.pp' % manifest
+    input_file = 'puppet/manifests/%s.pp.txt' % manifest
     output_file = 'build/%s.pp' % manifest
 
     content = Template(filename=input_file).render(variables=variables)
